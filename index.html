@@ -2,1044 +2,703 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>HCHO-Guard · Formaldehyde Monitoring</title>
-
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HCHO-Sentinel · Capture Bench</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
 :root{
-  --room:#4C5070;          /* the desk the app sits on */
-  --app:#272A3B;
-  --side:#222433;
-  --card:#2F3348;
-  --card-2:#383D55;
-  --line:rgba(255,255,255,.07);
-
-  --ink:#F3F4F8;
-  --ink-2:#B9BDD0;
-  --muted:#8B90A8;
-
-  --iris:#7B7FE0;          /* primary accent */
-  --iris-dp:#6266D6;
-  --rose:#F3B6C8;
-  --sky:#8CC9EC;
-  --mint:#4ECB8F;
-  --tang:#F5A25D;
-  --lilac:#A98BE8;
-  --red:#FF6B7A;
-
-  --r-xl:26px; --r-lg:20px; --r-md:14px; --r-sm:10px;
-  --f:'Plus Jakarta Sans',system-ui,sans-serif;
-  --f-num:'IBM Plex Mono',ui-monospace,monospace;
+  --paper:#EDF1F3; --panel:#FFFFFF; --ink:#0F1A21; --ink-2:#3C5261; --muted:#7590A2;
+  --rule:#CDDBE3; --rule-2:#E4ECF0;
+  --signal:#0B6E6E; --signal-2:#0E8C8C; --signal-w:rgba(11,110,110,.10);
+  --alert:#A32B1E; --caution:#8A5A00; --good:#17705A;
+  --f-d:'Instrument Serif',Georgia,serif;
+  --f-b:'Archivo',system-ui,sans-serif;
+  --f-m:'JetBrains Mono',ui-monospace,monospace;
 }
 *{box-sizing:border-box}
+html,body{margin:0}
 body{
-  margin:0;padding:22px;min-height:100vh;font-family:var(--f);color:var(--ink);
-  background:linear-gradient(160deg,#565B7C,#43476279 40%,#3B3E58);
-  background-color:var(--room);-webkit-font-smoothing:antialiased;
+  background:var(--paper);color:var(--ink);font-family:var(--f-b);font-size:14px;
+  -webkit-font-smoothing:antialiased;padding:20px 16px 40px;
+  background-image:linear-gradient(var(--rule-2) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--rule-2) 1px,transparent 1px);
+  background-size:26px 26px;
 }
-@media(max-width:860px){body{padding:0}}
+.wrap{max-width:1180px;margin:0 auto}
 
-.app{
-  max-width:1560px;margin:0 auto;background:var(--app);
-  border-radius:var(--r-xl);overflow:hidden;display:flex;min-height:calc(100vh - 44px);
-  box-shadow:0 30px 80px rgba(0,0,0,.35);
+/* ---------- instrument header ---------- */
+.bench{
+  background:var(--panel);border:1px solid var(--rule);
+  display:flex;align-items:stretch;flex-wrap:wrap;
 }
-@media(max-width:860px){.app{border-radius:0;flex-direction:column;min-height:100vh}}
+.bench .mark{padding:16px 20px;border-right:1px solid var(--rule);flex:1 1 320px}
+.bench h1{margin:0;font-family:var(--f-d);font-size:31px;font-weight:400;letter-spacing:-.2px;line-height:1}
+.bench h1 em{font-style:italic;color:var(--signal)}
+.bench .tag{margin:6px 0 0;font-size:12px;color:var(--muted);letter-spacing:.02em}
+.stat{padding:16px 20px;border-right:1px solid var(--rule);min-width:118px;display:flex;
+  flex-direction:column;justify-content:center}
+.stat:last-child{border-right:0}
+.stat b{display:block;font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:5px}
+.stat span{font-family:var(--f-m);font-size:14px;font-weight:500}
+.wire{display:inline-flex;align-items:center;gap:7px}
+.led{width:7px;height:7px;border-radius:50%;background:var(--alert);flex:none}
+.led.on{background:var(--good);box-shadow:0 0 0 3px rgba(23,112,90,.16)}
 
-/* ---------------- sidebar ---------------- */
-.side{
-  width:236px;flex:0 0 236px;background:var(--side);padding:26px 18px;
-  display:flex;flex-direction:column;gap:26px;
-}
-@media(max-width:860px){.side{width:auto;flex:none;padding:16px}}
+/* ---------- alerts ---------- */
+.alarm{display:none;margin-top:14px;padding:13px 16px;border:1px solid var(--alert);
+  background:#FBEDEB;color:var(--alert);font-size:13px;line-height:1.55}
+.alarm.show{display:block}
+.alarm b{display:block;font-weight:700;margin-bottom:2px}
 
-.logo{display:flex;align-items:center;gap:7px;padding-left:8px}
-.logo i{width:15px;height:15px;border-radius:4px;display:block}
-.logo i:nth-child(1){background:var(--sky)}
-.logo i:nth-child(2){background:var(--lilac);border-radius:50%}
-.logo i:nth-child(3){width:0;height:0;border-radius:0;border-left:13px solid var(--tang);
-  border-top:8px solid transparent;border-bottom:8px solid transparent}
+/* ---------- layout ---------- */
+.cols{display:grid;grid-template-columns:1fr 372px;gap:14px;margin-top:14px}
+@media(max-width:960px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--rule)}
+.phead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:12px 18px;border-bottom:1px solid var(--rule)}
+.phead h2{margin:0;font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+.phead .aside{font-family:var(--f-m);font-size:11px;color:var(--muted)}
+.pbody{padding:18px}
 
-nav{display:flex;flex-direction:column;gap:4px}
-@media(max-width:860px){nav{flex-direction:row;overflow:auto;gap:6px}.nav{width:auto;flex:none;white-space:nowrap}}
-.nav{
-  display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-md);
-  border:0;background:transparent;color:var(--muted);cursor:pointer;
-  font-family:var(--f);font-size:13.5px;font-weight:600;width:100%;text-align:left;transition:.18s;
-}
-.nav svg{width:17px;height:17px;flex:none}
-.nav:hover{color:var(--ink);background:rgba(255,255,255,.04)}
-.nav.on{background:var(--iris);color:#fff;box-shadow:0 8px 20px rgba(123,127,224,.32)}
-.nav:focus-visible{outline:2px solid var(--sky);outline-offset:2px}
+/* ---------- reading ---------- */
+.read{display:flex;align-items:flex-end;gap:26px;flex-wrap:wrap}
+.read .big{font-family:var(--f-d);font-size:74px;line-height:.86;letter-spacing:-1px;
+  font-variant-numeric:tabular-nums}
+.read .big .u{font-family:var(--f-b);font-size:15px;font-weight:600;color:var(--muted);
+  letter-spacing:.02em;margin-left:7px}
+.metrics{display:flex;gap:22px;flex-wrap:wrap;padding-bottom:6px}
+.metrics div b{display:block;font-size:9.5px;font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.metrics div span{font-family:var(--f-m);font-size:13.5px}
 
-.side-card{
-  margin-top:auto;background:linear-gradient(165deg,#343850,#2B2F44);
-  border:1px solid var(--line);border-radius:var(--r-lg);padding:18px;text-align:center;
-}
-.side-card h4{margin:0 0 6px;font-size:13px;font-weight:700}
-.side-card p{margin:0 0 14px;font-size:11.5px;line-height:1.55;color:var(--muted)}
-@media(max-width:860px){.side-card{display:none}}
+/* ---------- strip chart : the signature ---------- */
+.strip{margin-top:16px;position:relative;border:1px solid var(--rule);background:#FAFCFD}
+#trace{display:block;width:100%;height:214px}
+.striplab{display:flex;justify-content:space-between;padding:7px 11px;border-top:1px solid var(--rule-2);
+  font-family:var(--f-m);font-size:10.5px;color:var(--muted);letter-spacing:.02em}
+.shadekey{display:inline-flex;align-items:center;gap:6px}
+.swatch{width:16px;height:9px;background:var(--signal-w);border:1px solid rgba(11,110,110,.34)}
 
-/* ---------------- main ---------------- */
-.main{flex:1;min-width:0;padding:26px 24px 34px;display:flex;flex-direction:column;gap:20px}
-@media(max-width:860px){.main{padding:16px}}
+/* ---------- procedure rail ---------- */
+.rail{border-top:1px solid var(--rule);display:grid;grid-template-columns:repeat(4,1fr)}
+@media(max-width:600px){.rail{grid-template-columns:1fr 1fr}}
+.rstep{padding:13px 15px;border-right:1px solid var(--rule-2);display:flex;gap:10px;align-items:flex-start}
+.rstep:last-child{border-right:0}
+.rnum{font-family:var(--f-m);font-size:10px;font-weight:700;color:var(--muted);
+  border:1px solid var(--rule);width:19px;height:19px;display:grid;place-items:center;flex:none;margin-top:1px}
+.rstep.done .rnum{background:var(--good);border-color:var(--good);color:#fff}
+.rstep.warn .rnum{background:var(--caution);border-color:var(--caution);color:#fff}
+.rtxt b{display:block;font-size:12px;font-weight:600;margin-bottom:2px}
+.rtxt span{font-size:11px;color:var(--muted);line-height:1.45;display:block}
+.rstep.done .rtxt b{color:var(--good)}
 
-.head{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.hello h1{margin:0;font-size:31px;font-weight:800;letter-spacing:-.02em}
-.hello p{margin:5px 0 0;font-size:12.5px;color:var(--muted)}
-.search{
-  flex:1;min-width:190px;max-width:330px;display:flex;align-items:center;gap:9px;
-  background:var(--card);border:1px solid var(--line);border-radius:999px;padding:10px 16px;
-}
-.search input{border:0;background:transparent;color:var(--ink);font-family:var(--f);font-size:13px;width:100%;outline:none}
-.search svg{width:15px;height:15px;color:var(--muted);flex:none}
-.iconbtn{
-  width:42px;height:42px;border-radius:14px;border:1px solid var(--line);background:var(--card);
-  color:var(--ink-2);cursor:pointer;display:grid;place-items:center;transition:.18s;flex:none;
-}
-.iconbtn:hover{background:var(--card-2);color:var(--ink)}
-.iconbtn svg{width:17px;height:17px}
-.avatar{
-  width:42px;height:42px;border-radius:14px;flex:none;display:grid;place-items:center;
-  background:linear-gradient(150deg,var(--lilac),var(--iris));color:#fff;font-weight:700;font-size:14px;
-}
+/* ---------- capture form ---------- */
+.classes{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.cls{padding:11px 12px;border:1px solid var(--rule);background:#FBFDFE;color:var(--ink-2);
+  cursor:pointer;font-family:var(--f-b);font-size:12.5px;font-weight:600;text-align:left;
+  transition:background .13s,border-color .13s,color .13s}
+.cls:hover{border-color:var(--signal);color:var(--ink)}
+.cls.on{background:var(--signal);border-color:var(--signal);color:#fff}
+.cls small{display:block;font-family:var(--f-m);font-size:10px;font-weight:400;opacity:.72;margin-top:3px}
+.cls:focus-visible{outline:2px solid var(--signal-2);outline-offset:2px}
+.ctrltoggle{margin-top:8px;background:none;border:0;padding:0;cursor:pointer;
+  font-family:var(--f-b);font-size:11px;font-weight:600;color:var(--signal);text-decoration:underline}
+#ctrlWrap{display:none;margin-top:7px}
+#ctrlWrap.show{display:block}
 
-.split{display:grid;grid-template-columns:minmax(0,1fr) 322px;gap:20px;align-items:start}
-@media(max-width:1180px){.split{grid-template-columns:1fr}}
-.col{display:flex;flex-direction:column;gap:20px;min-width:0}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.fields .wide{grid-column:1/-1}
+label{display:block;font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:4px}
+input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--rule);background:#FBFDFE;
+  color:var(--ink);font-family:var(--f-m);font-size:12.5px;border-radius:0}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--signal);background:#fff}
+textarea{resize:vertical;min-height:46px;font-family:var(--f-b)}
+.inline{display:flex;gap:7px}
+.inline input{flex:1}
+.mini{padding:0 11px;border:1px solid var(--signal);background:#fff;color:var(--signal);
+  font-family:var(--f-b);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.mini:hover{background:var(--signal);color:#fff}
 
-.card{background:var(--card);border-radius:var(--r-lg);padding:20px}
-.card h3{margin:0 0 3px;font-size:15px;font-weight:700}
-.card .sub{font-size:11.5px;color:var(--muted)}
-.hd{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.actions{display:flex;gap:8px;margin-top:16px}
+.save{flex:1;padding:14px;border:0;background:var(--signal);color:#fff;cursor:pointer;
+  font-family:var(--f-b);font-size:13.5px;font-weight:700;letter-spacing:.01em}
+.save:hover:not(:disabled){background:var(--signal-2)}
+.save:disabled{background:#B7C6CE;cursor:not-allowed}
+.discard{padding:14px 16px;border:1px solid var(--rule);background:#fff;color:var(--ink-2);
+  cursor:pointer;font-family:var(--f-b);font-size:12.5px;font-weight:600}
+.discard:hover{border-color:var(--ink-2)}
+.why{margin-top:9px;font-size:11.5px;color:var(--caution);line-height:1.5;min-height:17px}
 
-/* ---- banner: the live reading ---- */
-.banner{
-  position:relative;overflow:hidden;border-radius:var(--r-lg);padding:24px 26px;
-  background:linear-gradient(115deg,#343850 0%,#2C3045 55%,#31364e 100%);
-  display:flex;align-items:center;gap:20px;min-height:154px;
-}
-.banner .txt{position:relative;z-index:2;min-width:0}
-.banner .lead{font-size:12px;color:var(--ink-2);font-weight:600;letter-spacing:.02em}
-.banner .big{
-  font-size:52px;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-top:6px;
-  font-variant-numeric:tabular-nums;
-}
-.banner .big span{font-size:19px;font-weight:600;color:var(--ink-2);margin-left:6px}
-.banner .meta{margin-top:9px;font-size:12px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-.banner .art{position:absolute;right:-10px;top:0;bottom:0;width:290px;opacity:.9;pointer-events:none}
-@media(max-width:640px){.banner .art{display:none}.banner .big{font-size:40px}}
+.log{margin-top:14px;border-top:1px solid var(--rule-2);padding-top:11px;
+  font-family:var(--f-m);font-size:11px;color:var(--muted);max-height:112px;overflow-y:auto;line-height:1.75}
+.log .e{color:var(--alert)} .log .s{color:var(--good)}
 
-.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;
-  font-size:11px;font-weight:700;letter-spacing:.02em}
-.p-good{background:rgba(78,203,143,.16);color:var(--mint)}
-.p-moderate{background:rgba(245,162,93,.16);color:var(--tang)}
-.p-warn{background:rgba(255,140,90,.18);color:#FF9E6B}
-.p-alarm{background:rgba(255,107,122,.18);color:var(--red)}
-
-/* ---- node cards (the credit-card motif) ---- */
-.nodes{display:flex;gap:16px;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x mandatory}
-.nodecard{
-  position:relative;flex:0 0 268px;height:158px;border-radius:var(--r-lg);padding:18px;
-  cursor:pointer;overflow:hidden;color:#23263A;scroll-snap-align:start;
-  border:2px solid transparent;transition:transform .2s,box-shadow .2s;
-  display:flex;flex-direction:column;justify-content:space-between;
-}
-.nodecard:hover{transform:translateY(-3px)}
-.nodecard.sel{border-color:#fff;box-shadow:0 12px 30px rgba(0,0,0,.3)}
-.nodecard.t0{background:linear-gradient(135deg,#F6C3D2,#EFA9BF)}
-.nodecard.t1{background:linear-gradient(135deg,#9FD4F0,#79BEE6)}
-.nodecard.t2{background:linear-gradient(135deg,#C3BDF2,#A796EA)}
-.nodecard .arc{position:absolute;right:-46px;top:-46px;width:180px;height:180px;border-radius:50%;
-  background:rgba(255,255,255,.32)}
-.nodecard .arc2{position:absolute;right:-26px;bottom:-70px;width:150px;height:150px;border-radius:50%;
-  background:rgba(255,255,255,.22)}
-.nodecard .nm{position:relative;font-size:13px;font-weight:800}
-.nodecard .id{position:relative;font-family:var(--f-num);font-size:15px;letter-spacing:.13em;margin-top:2px}
-.nodecard .bot{position:relative;display:flex;align-items:flex-end;justify-content:space-between}
-.nodecard .ppm{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
-.nodecard .ppm small{font-size:11px;font-weight:600;opacity:.65;margin-left:3px}
-.nodecard .st{font-size:10.5px;font-weight:700;opacity:.7;text-align:right;line-height:1.4}
-
-/* ---- distribution list ---- */
-.dist{display:flex;flex-direction:column;gap:2px}
-.dist .r{display:flex;align-items:center;gap:12px;padding:11px 0}
-.dist .r + .r{border-top:1px solid var(--line)}
-.dist .nmw{flex:1;min-width:0}
-.dist .n{font-size:13px;font-weight:700}
-.dist .s{font-size:11px;color:var(--muted);margin-top:2px}
-.badge-pc{
-  min-width:52px;height:32px;border-radius:999px;display:grid;place-items:center;
-  font-size:11.5px;font-weight:800;color:#fff;
-}
-
-/* ---- right column ---- */
-.chart-box{height:186px;position:relative}
-.donut-wrap{position:relative;height:186px;display:grid;place-items:center}
-.donut-mid{position:absolute;text-align:center;pointer-events:none}
-.donut-mid b{font-size:29px;font-weight:800;font-variant-numeric:tabular-nums}
-.donut-mid b span{font-size:14px;color:var(--muted)}
-.donut-mid i{display:block;font-style:normal;font-size:10.5px;color:var(--muted);margin-top:2px}
-.legend{margin-top:14px;display:flex;flex-direction:column;gap:11px}
-.legend .l{display:flex;align-items:center;gap:10px;font-size:12.5px}
-.legend .l b{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
-.legend .d{width:8px;height:8px;border-radius:50%;flex:none}
-
-/* ---- controls ---- */
-select,input[type=text],input[type=number],input[type=datetime-local],input[type=password]{
-  background:var(--card-2);border:1px solid var(--line);color:var(--ink);border-radius:var(--r-sm);
-  padding:9px 11px;font-family:var(--f);font-size:12.5px;outline:none;transition:.15s;
-}
-select:focus,input:focus{border-color:var(--iris)}
-select option{background:#2F3348}
-label.fld{display:flex;flex-direction:column;gap:6px;font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:.04em}
-.btn{
-  display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border-radius:var(--r-sm);
-  border:1px solid var(--line);background:var(--card-2);color:var(--ink);cursor:pointer;
-  font-family:var(--f);font-size:12.5px;font-weight:600;transition:.16s;
-}
-.btn:hover{background:#41465F}
-.btn:focus-visible{outline:2px solid var(--sky);outline-offset:2px}
-.btn.primary{background:var(--iris);border-color:transparent;color:#fff;box-shadow:0 8px 20px rgba(123,127,224,.3)}
-.btn.primary:hover{background:var(--iris-dp)}
-.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
-.btn.sm{padding:7px 12px;font-size:11.5px}
-.row{display:flex;gap:11px;align-items:flex-end;flex-wrap:wrap}
-.spacer{flex:1}
-
-/* ---- tables ---- */
-.tbl{overflow:auto;max-height:520px;border-radius:var(--r-md)}
-table{width:100%;border-collapse:collapse;font-size:12px}
-thead th{
-  position:sticky;top:0;z-index:2;background:var(--card-2);color:var(--muted);text-align:left;
-  padding:11px 13px;font-size:10.5px;font-weight:700;letter-spacing:.05em;white-space:nowrap;
-}
-tbody td{padding:10px 13px;border-bottom:1px solid var(--line);color:var(--ink-2);
-  white-space:nowrap;font-family:var(--f-num);font-size:11.5px}
-tbody tr:hover td{background:rgba(255,255,255,.035);color:var(--ink)}
-td.num{text-align:right;font-variant-numeric:tabular-nums}
-.tag{padding:3px 9px;border-radius:999px;font-size:10px;font-weight:700;font-family:var(--f)}
-.t-good{background:rgba(78,203,143,.16);color:var(--mint)}
-.t-moderate{background:rgba(245,162,93,.16);color:var(--tang)}
-.t-warn{background:rgba(255,140,90,.18);color:#FF9E6B}
-.t-alarm{background:rgba(255,107,122,.18);color:var(--red)}
-.pager{display:flex;align-items:center;justify-content:flex-end;gap:11px;margin-top:14px;
-  font-size:12px;color:var(--muted)}
-
-/* ---- alerts ---- */
-.ev{display:flex;gap:12px;align-items:center;padding:11px 0}
-.ev + .ev{border-top:1px solid var(--line)}
-.ev .ic{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;flex:none;font-size:14px}
-.ev .t{font-size:12.5px;font-weight:600}
-.ev .w{font-size:10.5px;color:var(--muted);margin-top:2px;font-family:var(--f-num)}
-
-/* ---- dataset ---- */
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.chip{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;
-  background:var(--card-2);border:1px solid var(--line);font-size:11.5px;cursor:pointer;
-  color:var(--ink-2);user-select:none;font-weight:600}
-.chip input{accent-color:var(--iris);margin:0}
-.chip:has(input:checked){background:rgba(123,127,224,.18);border-color:var(--iris);color:#C9CBF6}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:11px;margin-top:16px}
-.stat{background:var(--card-2);border-radius:var(--r-md);padding:13px 15px}
-.stat .k{font-size:10.5px;color:var(--muted);font-weight:700}
-.stat .v{font-size:19px;font-weight:800;margin-top:5px;font-variant-numeric:tabular-nums}
-
-.empty{padding:30px 16px;text-align:center;color:var(--muted)}
-.empty h4{margin:0 0 6px;color:var(--ink-2);font-size:14px}
-.empty p{margin:0 auto;max-width:400px;font-size:12.5px;line-height:1.6}
-.hint{font-size:11.5px;color:var(--muted);line-height:1.55}
-
-.toast{position:fixed;right:20px;bottom:20px;z-index:60;display:flex;flex-direction:column;gap:9px}
-.toast div{padding:12px 16px;border-radius:var(--r-md);background:#343850;font-size:12.5px;
-  box-shadow:0 14px 36px rgba(0,0,0,.45);animation:in .3s ease;max-width:330px}
-.toast .ok{border-left:3px solid var(--mint)}
-.toast .err{border-left:3px solid var(--red)}
-@keyframes in{from{transform:translateY(12px);opacity:0}}
-
-dialog{border:0;border-radius:var(--r-lg);background:var(--card);color:var(--ink);padding:0;max-width:470px;width:92vw}
-dialog::backdrop{background:rgba(20,22,34,.62)}
-dialog .dlg{padding:22px}
-dialog h3{margin:0 0 5px;font-size:16px;font-weight:700}
-
-@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+/* ---------- progress ---------- */
+.full{margin-top:14px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);
+  padding:0 10px 9px 0;font-weight:700}
+td{padding:9px 10px 9px 0;border-top:1px solid var(--rule-2);font-family:var(--f-m);font-size:12.5px}
+td:first-child{font-family:var(--f-b);font-weight:600}
+tr.empty td{color:var(--muted)}
+.meter{height:6px;background:var(--rule-2);position:relative;min-width:60px}
+.meter i{position:absolute;inset:0 auto 0 0;background:var(--signal);display:block}
+.exp{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.ghost{padding:9px 14px;border:1px solid var(--rule);background:#fff;color:var(--ink-2);cursor:pointer;
+  font-family:var(--f-b);font-size:11.5px;font-weight:600}
+.ghost:hover{border-color:var(--signal);color:var(--signal)}
+.foot{margin-top:12px;font-size:11.5px;color:var(--muted);line-height:1.6}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<div class="app">
+<div class="wrap">
 
-  <!-- ============== SIDEBAR ============== -->
-  <aside class="side">
-    <div class="logo"><i></i><i></i><i></i></div>
-
-    <nav>
-      <button class="nav on" data-nav="live">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>
-        Dashboard
-      </button>
-      <button class="nav" data-nav="history">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-        History log
-      </button>
-      <button class="nav" data-nav="dataset">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
-        Dataset
-      </button>
-      <button class="nav" id="navSettings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9M4.6 9a1.7 1.7 0 0 0-.3-1.9M15 4.6a1.7 1.7 0 0 0-1.9-.3M9 19.4a1.7 1.7 0 0 0 1.9.3"/></svg>
-        Settings
-      </button>
-    </nav>
-
-    <div class="side-card">
-      <h4 id="scTitle">Checking node…</h4>
-      <p id="scText">Reading the latest sample from the sensor network.</p>
-      <button class="btn primary sm" id="scBtn" style="width:100%;justify-content:center">Send test reading</button>
+  <div class="bench">
+    <div class="mark">
+      <h1>HCHO&#8209;<em>Sentinel</em></h1>
+      <p class="tag">Formalin capture bench · MS1100 · Daffodil International University</p>
     </div>
-  </aside>
+    <div class="stat"><b>Node</b><span class="wire"><i class="led" id="led"></i><span id="wire">linking</span></span></div>
+    <div class="stat"><b>Sensor</b><span id="sState">—</span></div>
+    <div class="stat"><b>Window</b><span id="wCount">0 pts</span></div>
+    <div class="stat"><b>Saved</b><span id="totalN">0</span></div>
+  </div>
 
-  <!-- ============== MAIN ============== -->
-  <main class="main">
+  <div class="alarm" id="alarm"><b id="alarmT"></b><span id="alarmB"></span></div>
 
-    <header class="head">
-      <div class="hello">
-        <h1 id="greet">Hello</h1>
-        <p id="greetSub">Welcome back</p>
+  <div class="cols">
+
+    <section class="panel">
+      <div class="phead">
+        <h2>Live trace</h2>
+        <span class="aside" id="seqTxt">seq —</span>
       </div>
-      <div class="search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
-        <input id="search" placeholder="Search the log — try warn, alarm, or a date">
-      </div>
-      <div class="spacer"></div>
-      <button class="iconbtn" id="btnRefresh" title="Refresh">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
-      </button>
-      <div class="avatar" id="avatar">MH</div>
-    </header>
-
-    <!-- ---------- LIVE ---------- -->
-    <section id="v-live">
-      <div class="split">
-        <div class="col">
-
-          <!-- banner -->
-          <div class="banner">
-            <div class="txt">
-              <div class="lead">Formaldehyde right now</div>
-              <div class="big" id="bigPpm">—<span>ppm</span></div>
-              <div class="meta">
-                <span class="pill p-good" id="bigPill">no data</span>
-                <span id="bigMg">— mg/m³</span>
-                <span id="bigWhen">—</span>
-              </div>
-            </div>
-            <svg class="art" viewBox="0 0 290 160" fill="none" aria-hidden="true">
-              <defs>
-                <linearGradient id="v1" x1="0" y1="1" x2="0" y2="0">
-                  <stop offset="0" stop-color="#7B7FE0" stop-opacity="0"/>
-                  <stop offset="1" stop-color="#8CC9EC" stop-opacity=".55"/>
-                </linearGradient>
-                <linearGradient id="v2" x1="0" y1="1" x2="0" y2="0">
-                  <stop offset="0" stop-color="#F3B6C8" stop-opacity="0"/>
-                  <stop offset="1" stop-color="#F3B6C8" stop-opacity=".45"/>
-                </linearGradient>
-              </defs>
-              <path d="M60 160c0-40 26-46 26-78S60 40 60 6" stroke="url(#v1)" stroke-width="14" stroke-linecap="round"/>
-              <path d="M120 160c0-46 28-50 28-86s-28-40-28-68" stroke="url(#v2)" stroke-width="18" stroke-linecap="round"/>
-              <path d="M182 160c0-36 24-44 24-72s-24-36-24-62" stroke="url(#v1)" stroke-width="11" stroke-linecap="round"/>
-              <circle cx="228" cy="44" r="5" fill="#8CC9EC" opacity=".5"/>
-              <circle cx="248" cy="86" r="3.5" fill="#F3B6C8" opacity=".55"/>
-              <circle cx="214" cy="104" r="3" fill="#A98BE8" opacity=".5"/>
-            </svg>
-          </div>
-
-          <!-- node cards -->
-          <div class="nodes" id="nodeCards"></div>
-
-          <!-- distribution + events -->
-          <div class="card">
-            <div class="hd">
-              <div><h3>Air quality mix</h3><div class="sub">Share of the last 24 hours by level</div></div>
-              <span class="sub" id="mixN">—</span>
-            </div>
-            <div class="dist" id="mix"></div>
-          </div>
-
-          <div class="card">
-            <div class="hd">
-              <div><h3>Threshold events</h3><div class="sub">Raised when a sample reaches 0.08 ppm</div></div>
-            </div>
-            <div id="events"></div>
+      <div class="pbody">
+        <div class="read">
+          <div class="big"><span id="ppm">—.———</span><span class="u">ppm</span></div>
+          <div class="metrics">
+            <div><b>Rs/R0</b><span id="ratio">—</span></div>
+            <div><b>Rs</b><span id="rs">—</span></div>
+            <div><b>ADC</b><span id="adc">—</span></div>
+            <div><b>Steadiness</b><span id="cv">—</span></div>
           </div>
         </div>
 
-        <!-- right column -->
-        <div class="col">
-          <div class="card">
-            <div class="hd">
-              <div><h3>Trend</h3></div>
-              <select id="rangeSel" class="btn sm" style="padding:7px 10px">
-                <option value="1">Hour</option>
-                <option value="6" selected>6 hours</option>
-                <option value="24">Day</option>
-                <option value="168">Week</option>
-              </select>
-            </div>
-            <div class="chart-box"><canvas id="trendChart"></canvas></div>
-          </div>
-
-          <div class="card">
-            <div class="hd"><div><h3>Compliance</h3><div class="sub">Samples within the WHO limit</div></div></div>
-            <div class="donut-wrap">
-              <canvas id="donut"></canvas>
-              <div class="donut-mid"><b id="donutPc">—<span>%</span></b><i>within limit</i></div>
-            </div>
-            <div class="legend" id="legend"></div>
+        <div class="strip">
+          <canvas id="trace"></canvas>
+          <div class="striplab">
+            <span class="shadekey"><span class="swatch"></span>shaded band is what Save will store</span>
+            <span id="scaleTxt">—</span>
           </div>
         </div>
+      </div>
+
+      <div class="rail" id="rail">
+        <div class="rstep" id="s1"><div class="rnum">1</div><div class="rtxt"><b>Baseline</b><span id="s1t">empty chamber first</span></div></div>
+        <div class="rstep" id="s2"><div class="rnum">2</div><div class="rtxt"><b>Class</b><span id="s2t">none picked</span></div></div>
+        <div class="rstep" id="s3"><div class="rnum">3</div><div class="rtxt"><b>Points</b><span id="s3t">collecting</span></div></div>
+        <div class="rstep" id="s4"><div class="rnum">4</div><div class="rtxt"><b>Settled</b><span id="s4t">waiting</span></div></div>
       </div>
     </section>
 
-    <!-- ---------- HISTORY ---------- -->
-    <section id="v-history" hidden>
-      <div class="card" style="margin-bottom:20px">
-        <div class="hd"><div><h3>History log</h3><div class="sub">Every stored sample, filterable and exportable</div></div></div>
-        <div class="row">
-          <label class="fld">From<input type="datetime-local" id="hFrom"></label>
-          <label class="fld">To<input type="datetime-local" id="hTo"></label>
-          <label class="fld">Level
-            <select id="hLevel">
-              <option value="">All levels</option><option value="good">good</option>
-              <option value="moderate">moderate</option><option value="warn">warn</option><option value="alarm">alarm</option>
+    <section class="panel">
+      <div class="phead"><h2>Store a sample</h2><span class="aside" id="nextNo">—</span></div>
+      <div class="pbody">
+
+        <div class="classes" id="mainClasses"></div>
+        <button class="ctrltoggle" id="ctrlBtn">Show control classes</button>
+        <div id="ctrlWrap"><div class="classes" id="ctrlClasses"></div></div>
+
+        <div class="fields">
+          <div>
+            <label for="sampleNo">Sample no</label>
+            <input type="number" id="sampleNo" min="1" value="1">
+          </div>
+          <div>
+            <label for="window">Capture window</label>
+            <select id="window">
+              <option value="20">last 20 s</option>
+              <option value="30" selected>last 30 s</option>
+              <option value="60">last 60 s</option>
+              <option value="90">last 90 s</option>
             </select>
-          </label>
-          <label class="fld">Min ppm<input type="number" id="hMin" step="0.001" placeholder="0.000" style="width:96px"></label>
-          <label class="fld">Rows<select id="hSize"><option>50</option><option selected>100</option><option>250</option><option>500</option></select></label>
-          <button class="btn primary" id="hApply">Apply</button>
-          <button class="btn" id="hReset">Reset</button>
-          <div class="spacer"></div>
-          <button class="btn" id="hCsv">CSV</button>
-          <button class="btn" id="hXlsx">Excel</button>
+          </div>
+          <div class="wide">
+            <label for="baseline">Baseline ppm · empty chamber</label>
+            <div class="inline">
+              <input type="number" id="baseline" step="0.0001" placeholder="take one before each fish">
+              <button class="mini" id="takeBase">Take now</button>
+            </div>
+          </div>
+          <div>
+            <label for="species">Fish species</label>
+            <input type="text" id="species" placeholder="Rui">
+          </div>
+          <div>
+            <label for="mass">Fish mass · g</label>
+            <input type="number" id="mass" step="1" placeholder="100">
+          </div>
+          <div>
+            <label for="fpct">Formalin · %</label>
+            <input type="number" id="fpct" step="0.1" placeholder="0">
+          </div>
+          <div>
+            <label for="chamber">Chamber · mL</label>
+            <input type="number" id="chamber" step="10" placeholder="1000">
+          </div>
+          <div class="wide">
+            <label for="roomTemp">Room temp · °C · from wall thermometer</label>
+            <input type="number" id="roomTemp" step="0.1" placeholder="24.5">
+          </div>
+          <div class="wide">
+            <label for="notes">Notes</label>
+            <textarea id="notes" placeholder="anything unusual about this run"></textarea>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="tbl"><table>
-          <thead><tr><th>#</th><th>Recorded at (Asia/Dhaka)</th><th>Node</th><th class="num">ppm</th>
-            <th class="num">mg/m³</th><th>Level</th><th class="num">Rs kΩ</th><th class="num">Rs/R₀</th>
-            <th class="num">mV</th><th class="num">°C</th><th class="num">%RH</th><th class="num">RSSI</th></tr></thead>
-          <tbody id="hBody"></tbody>
-        </table></div>
-        <div class="pager">
-          <span id="hCount">—</span>
-          <button class="btn sm" id="hPrev">Previous</button>
-          <span id="hPage">page 1</span>
-          <button class="btn sm" id="hNext">Next</button>
-        </div>
-      </div>
-    </section>
 
-    <!-- ---------- DATASET ---------- -->
-    <section id="v-dataset" hidden>
-      <div class="split">
-        <div class="col">
-          <div class="card">
-            <div class="hd"><div><h3>Dataset builder</h3><div class="sub">Publication-ready export · CSV · Excel · JSON</div></div></div>
-            <div class="row">
-              <label class="fld">From<input type="datetime-local" id="dFrom"></label>
-              <label class="fld">To<input type="datetime-local" id="dTo"></label>
-              <label class="fld">Resolution
-                <select id="dRes">
-                  <option value="raw">Raw samples</option><option value="1">1-minute mean</option>
-                  <option value="5" selected>5-minute mean</option><option value="15">15-minute mean</option>
-                  <option value="60">Hourly mean</option>
-                </select>
-              </label>
-              <label class="fld">Scope<select id="dScope"><option value="one">This node</option><option value="all">All nodes</option></select></label>
-              <button class="btn primary" id="dBuild">Build dataset</button>
-            </div>
-            <div class="chips" id="dCols"></div>
-            <label class="chip" style="margin-top:10px">
-              <input type="checkbox" id="dFeat" checked>
-              Add modelling features (hour, weekday, Δppm, rolling mean, exceedance flag)
-            </label>
-            <div class="stats" id="dStats"></div>
-            <div class="row" style="margin-top:16px">
-              <button class="btn" id="dCsv" disabled>Download CSV</button>
-              <button class="btn" id="dXlsx" disabled>Download Excel</button>
-              <button class="btn" id="dJson" disabled>Download JSON</button>
-            </div>
-            <p class="hint" id="dNote" style="margin-top:10px">Build the dataset first — exports stay disabled until there are rows.</p>
-            <div class="tbl" style="margin-top:14px;max-height:330px">
-              <table><thead id="dHead"></thead><tbody id="dBody"></tbody></table>
-            </div>
-          </div>
+        <div class="actions">
+          <button class="save" id="btnSave" disabled>Store sample</button>
+          <button class="discard" id="btnClear">Discard</button>
         </div>
-        <div class="col">
-          <div class="card">
-            <div class="hd"><div><h3>Distribution</h3><div class="sub">Histogram of the built dataset</div></div></div>
-            <div class="chart-box"><canvas id="histChart"></canvas></div>
-          </div>
-          <div class="card">
-            <div class="hd"><div><h3>Daily rollup</h3><div class="sub">Mean and peak per day</div></div></div>
-            <div class="chart-box"><canvas id="dailyChart"></canvas></div>
-          </div>
-        </div>
+        <div class="why" id="why"></div>
+
+        <div class="log" id="log"></div>
       </div>
     </section>
-  </main>
+  </div>
+
+  <section class="panel full">
+    <div class="phead"><h2>Dataset progress</h2><span class="aside">one row per stored sample</span></div>
+    <div class="pbody">
+      <table>
+        <thead><tr><th>Class</th><th>Samples</th><th>Mean ppm</th><th>Mean SD</th><th style="width:32%">Balance</th></tr></thead>
+        <tbody id="counts"></tbody>
+      </table>
+      <div class="exp">
+        <button class="ghost" id="expWide">Wide CSV · supervisor format</button>
+        <button class="ghost" id="expLong">Long CSV · for training</button>
+        <button class="ghost" id="expRaw">Raw per-second CSV</button>
+        <button class="ghost" id="refresh">Refresh</button>
+      </div>
+      <p class="foot">
+        Live values are never stored. A row reaches Supabase only when you press Store sample.
+        Model on <code>ppm_over_baseline</code> in the long export, not raw ppm: the MS1100 drifts
+        over a 24&nbsp;hour run and dividing by each sample's own baseline removes it.
+      </p>
+    </div>
+  </section>
 </div>
 
-<div class="toast" id="toast"></div>
-
-<dialog id="dlg"><div class="dlg">
-  <h3>Connection</h3>
-  <div class="sub" style="margin-bottom:16px">Point the dashboard at a different Supabase project, or push a test row to prove the pipeline before the hardware is ready.</div>
-  <div class="row" style="flex-direction:column;align-items:stretch">
-    <label class="fld">Project URL<input type="text" id="cfgUrl"></label>
-    <label class="fld">Anon key<input type="password" id="cfgKey"></label>
-  </div>
-  <div class="row" style="margin-top:18px">
-    <button class="btn primary" id="cfgSave">Save and reload</button>
-    <button class="btn" id="cfgTest">Send test reading</button>
-    <div class="spacer"></div>
-    <button class="btn" id="cfgClose">Close</button>
-  </div>
-  <p class="hint" style="margin-top:14px">The anon key is public by design. Never put a service-role key in a page like this.</p>
-</div></dialog>
-
 <script>
-/* =============== CONFIG =============== */
-let SB_URL = "https://veiaafecvwthgkplofog.supabase.co";
-let SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlaWFhZmVjdnd0aGdrcGxvZm9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyNTQ0NjUsImV4cCI6MjEwMTgzMDQ2NX0.l4gkPoFPtjVTHdT0jdKcGmPFW1IKbgrPJLtcMsejwuc";
+/* =====================================================================
+   CONFIG
+   ===================================================================== */
+const SUPABASE_URL  = "https://wpnxyrdmmjttusmnurdr.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indwbnh5cmRtbWp0dHVzbW51cmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMTI4MDcsImV4cCI6MjA5MzY4ODgwN30.mYw20b6YcPXdpXzs2hhlTAoqg5tkMCCGosLwh7DYTdw";
+const DEVICE_ID     = "hcho-node-01";
 
-const WHO_PPM = 0.08, ALARM_PPM = 0.30, POLL_MS = 5000;
-const OWNER = "Mehedi";
-
-const C = {iris:'#7B7FE0',rose:'#F3B6C8',sky:'#8CC9EC',mint:'#4ECB8F',tang:'#F5A25D',lilac:'#A98BE8',red:'#FF6B7A',muted:'#8B90A8'};
-const LEVEL_COLOR = {good:C.mint, moderate:C.tang, warn:'#FF9E6B', alarm:C.red};
-
-/* =============== HELPERS =============== */
-const $ = s=>document.querySelector(s), $$ = s=>[...document.querySelectorAll(s)];
-const pad = n=>String(n).padStart(2,'0');
-const fmt = (n,d=3)=> (n===null||n===undefined||Number.isNaN(Number(n))) ? "—" : Number(n).toFixed(d);
-
-function toast(msg,kind="ok"){
-  const el=document.createElement('div'); el.className=kind; el.textContent=msg;
-  $('#toast').appendChild(el);
-  setTimeout(()=>{el.style.opacity=0;el.style.transition='.4s';setTimeout(()=>el.remove(),400)},3600);
-}
-async function sb(path,opts={}){
-  const res = await fetch(SB_URL+"/rest/v1/"+path,{...opts,headers:{
-    apikey:SB_KEY, Authorization:"Bearer "+SB_KEY, "Content-Type":"application/json", ...(opts.headers||{})}});
-  if(!res.ok) throw new Error(res.status+" "+(await res.text()).slice(0,160));
-  return res;
-}
-const sbJson = async (p,o)=>(await sb(p,o)).json();
-
-const dhaka = iso => iso ? new Date(iso).toLocaleString('en-GB',{timeZone:'Asia/Dhaka',year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}) : "—";
-const clock = iso => new Date(iso).toLocaleString('en-GB',{timeZone:'Asia/Dhaka',hour:'2-digit',minute:'2-digit',hour12:false});
-function ago(iso){
-  if(!iso) return "never";
-  const s=(Date.now()-new Date(iso).getTime())/1000;
-  if(s<60) return Math.round(s)+"s ago";
-  if(s<3600) return Math.round(s/60)+"m ago";
-  if(s<86400) return Math.round(s/3600)+"h ago";
-  return Math.round(s/86400)+"d ago";
-}
-const localInput = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes());
-const levelOf = p => p>=ALARM_PPM?'alarm' : p>=WHO_PPM?'warn' : p>=WHO_PPM*0.6?'moderate':'good';
-
-const state = {devices:[],device:null,latest:null,hours:6,hist:{page:0,rows:[],size:100},ds:{rows:[],cols:[]},charts:{}};
-
-/* =============== NAV =============== */
-function go(v){
-  ['live','history','dataset'].forEach(x=>$('#v-'+x).hidden = x!==v);
-  $$('.nav[data-nav]').forEach(b=>b.classList.toggle('on', b.dataset.nav===v));
-  if(v==='history' && !state.hist.rows.length) loadHistory();
-}
-$$('.nav[data-nav]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.nav)));
-
-/* =============== LIVE =============== */
-async function loadDevices(){
-  state.devices = await sbJson("devices?select=*&order=device_id");
-  if(!state.device || !state.devices.find(d=>d.device_id===state.device))
-    state.device = state.devices[0]?.device_id || null;
-  renderNodeCards();
-}
-
-function renderNodeCards(){
-  const box = $('#nodeCards');
-  if(!state.devices.length){
-    box.innerHTML = `<div class="empty" style="width:100%"><h4>No nodes registered</h4>
-      <p>Run <b>supabase_schema.sql</b> in the SQL editor, then reload.</p></div>`;
-    return;
-  }
-  box.innerHTML = state.devices.map((d,i)=>`
-    <div class="nodecard t${i%3} ${d.device_id===state.device?'sel':''}" data-dev="${d.device_id}">
-      <div class="arc"></div><div class="arc2"></div>
-      <div>
-        <div class="nm">${d.name}</div>
-        <div class="id">${d.device_id.replace(/^hcho-/,'').toUpperCase()}</div>
-      </div>
-      <div class="bot">
-        <div class="ppm" data-ppm="${d.device_id}">—<small>ppm</small></div>
-        <div class="st">${d.location||'—'}<br>${d.r0_clean_air?'R₀ '+Number(d.r0_clean_air).toFixed(1)+'k':'not calibrated'}</div>
-      </div>
-    </div>`).join("");
-  $$('.nodecard').forEach(c=>c.addEventListener('click',async ()=>{
-    state.device = c.dataset.dev; state.hist.page = 0;
-    renderNodeCards(); await refresh(); loadTrend();
-    if(!$('#v-history').hidden) loadHistory();
-  }));
-  paintCardPpms();
-}
-
-async function paintCardPpms(){
-  try{
-    const rows = await sbJson("v_latest_reading?select=device_id,hcho_ppm");
-    rows.forEach(r=>{
-      const el = document.querySelector(`[data-ppm="${r.device_id}"]`);
-      if(el) el.innerHTML = fmt(r.hcho_ppm,3)+"<small>ppm</small>";
-    });
-  }catch(e){/* view may not exist on older schemas */}
-}
-
-async function loadLatest(){
-  if(!state.device) return;
-  const dev = state.devices.find(d=>d.device_id===state.device);
-  const [r] = await sbJson(`readings?select=*&device_id=eq.${state.device}&order=recorded_at.desc&limit=1`);
-  state.latest = r;
-
-  $('#greet').textContent = `Hello, ${OWNER}`;
-  $('#greetSub').textContent = dev ? `${dev.name} · ${dev.location||'location not set'}` : 'No node selected';
-
-  if(!r){
-    $('#bigPpm').innerHTML = "—<span>ppm</span>";
-    $('#bigMg').textContent = "— mg/m³";
-    $('#bigWhen').textContent = "waiting for the first sample";
-    $('#bigPill').className = "pill p-good"; $('#bigPill').textContent = "no data";
-    sideCard(dev, null); return;
-  }
-  $('#bigPpm').innerHTML = fmt(r.hcho_ppm,3)+"<span>ppm</span>";
-  $('#bigMg').textContent = fmt(r.hcho_mg_m3 ?? r.hcho_ppm*1.228,3)+" mg/m³";
-  $('#bigWhen').textContent = ago(r.recorded_at) + (r.temperature_c!=null ? ` · ${fmt(r.temperature_c,1)} °C · ${fmt(r.humidity_pct,0)} %RH` : "");
-  $('#bigPill').className = "pill p-"+r.level;
-  $('#bigPill').textContent = r.level;
-  sideCard(dev, r);
-}
-
-function sideCard(dev, r){
-  const t = $('#scTitle'), p = $('#scText');
-  if(!r){ t.textContent = "No data yet"; p.textContent = "Nothing has arrived from this node. Push a test row to check the pipeline end to end."; return; }
-  if(r.is_calibrated === false){
-    t.textContent = "Node not calibrated";
-    p.textContent = "Readings will stay at zero until R₀ is stored. Let Rs settle in clean air, then type cal in the Serial Monitor.";
-    return;
-  }
-  const age = (Date.now()-new Date(r.recorded_at).getTime())/1000;
-  if(age > 900){ t.textContent = "Node is quiet"; p.textContent = `Last sample ${ago(r.recorded_at)}. Check power and WiFi at the node.`; return; }
-  t.textContent = "Node is healthy";
-  p.textContent = `Streaming normally · R₀ ${dev?.r0_clean_air ? Number(dev.r0_clean_air).toFixed(1)+' kΩ' : 'unknown'} · ${r.rssi ?? '—'} dBm`;
-}
-
-async function loadTrend(){
-  if(!state.device) return;
-  const h = state.hours, from = new Date(Date.now()-h*3600e3).toISOString();
-  let rows;
-  if(h>24){
-    rows = (await sbJson(`v_readings_hourly?select=bucket,ppm_avg&device_id=eq.${state.device}&bucket=gte.${from}&order=bucket.asc`))
-             .map(r=>({t:r.bucket,ppm:Number(r.ppm_avg)}));
-  }else{
-    rows = (await sbJson(`readings?select=recorded_at,hcho_ppm&device_id=eq.${state.device}&recorded_at=gte.${from}&order=recorded_at.asc&limit=3000`))
-             .map(r=>({t:r.recorded_at,ppm:Number(r.hcho_ppm)}));
-  }
-  drawTrend(rows);
-}
-
-const axisOff = {grid:{display:false},border:{display:false},ticks:{color:C.muted,font:{family:'Plus Jakarta Sans',size:10},maxRotation:0,autoSkipPadding:26}};
-function baseOpts(){
-  return {responsive:true,maintainAspectRatio:false,animation:{duration:400},
-    interaction:{mode:'index',intersect:false},
-    plugins:{legend:{display:false},tooltip:{backgroundColor:'#3A3F58',padding:11,cornerRadius:10,
-      displayColors:false,titleFont:{family:'Plus Jakarta Sans',size:11},bodyFont:{family:'IBM Plex Mono',size:12}}},
-    scales:{x:axisOff,y:{...axisOff,grid:{color:'rgba(255,255,255,.05)',drawTicks:false},beginAtZero:true}}};
-}
-
-function drawTrend(rows){
-  if(state.charts.trend) state.charts.trend.destroy();
-  state.charts.trend = new Chart($('#trendChart'),{
-    type:'line',
-    data:{labels:rows.map(r=>clock(r.t)),datasets:[
-      {data:rows.map(r=>r.ppm),borderColor:'#FFFFFF',borderWidth:2.4,tension:.42,
-       pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:'#fff',
-       pointHoverBorderColor:C.iris,pointHoverBorderWidth:3,fill:false},
-      {data:rows.map(()=>WHO_PPM),borderColor:'rgba(255,107,122,.5)',borderDash:[5,5],borderWidth:1.3,pointRadius:0}
-    ]},
-    options:baseOpts()
-  });
-}
-
-async function loadStats(){
-  if(!state.device) return;
-  const from = new Date(Date.now()-24*3600e3).toISOString();
-  const rows = await sbJson(`readings?select=recorded_at,hcho_ppm,level&device_id=eq.${state.device}&recorded_at=gte.${from}&order=recorded_at.asc&limit=5000`);
-  const counts = {good:0,moderate:0,warn:0,alarm:0};
-  rows.forEach(r=>counts[r.level] !== undefined && counts[r.level]++);
-  const n = rows.length || 1;
-
-  $('#mixN').textContent = rows.length ? `${rows.length} samples` : "no samples";
-  $('#mix').innerHTML = rows.length ? Object.entries(counts).map(([k,v])=>`
-    <div class="r">
-      <div class="nmw">
-        <div class="n">${k[0].toUpperCase()+k.slice(1)}</div>
-        <div class="s">${v} samples${k==='warn'?' · at or above 0.08 ppm':k==='alarm'?' · at or above 0.30 ppm':''}</div>
-      </div>
-      <div class="badge-pc" style="background:${LEVEL_COLOR[k]}">${Math.round(100*v/n)}%</div>
-    </div>`).join("")
-    : `<div class="empty"><h4>Nothing recorded in the last day</h4><p>Once the node uploads, the mix of air-quality levels appears here.</p></div>`;
-
-  const vals = rows.map(r=>Number(r.hcho_ppm));
-  const within = counts.good + counts.moderate;
-  const pc = rows.length ? Math.round(100*within/n) : 0;
-  $('#donutPc').innerHTML = (rows.length?pc:"—")+"<span>%</span>";
-  drawDonut(rows.length ? [within, n-within] : [0,1]);
-
-  const mean = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
-  const peak = vals.length ? Math.max(...vals) : null;
-  $('#legend').innerHTML = `
-    <div class="l"><span class="d" style="background:${C.iris}"></span>Mean, 24 h<b>${fmt(mean,3)} ppm</b></div>
-    <div class="l"><span class="d" style="background:${C.tang}"></span>Peak, 24 h<b>${fmt(peak,3)} ppm</b></div>
-    <div class="l"><span class="d" style="background:${C.sky}"></span>Samples<b>${rows.length}</b></div>`;
-}
-
-function drawDonut(parts){
-  if(state.charts.donut) state.charts.donut.destroy();
-  state.charts.donut = new Chart($('#donut'),{
-    type:'doughnut',
-    data:{datasets:[{data:parts,backgroundColor:[C.iris,C.tang],borderWidth:0,borderRadius:8,spacing:3}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'76%',plugins:{legend:{display:false},tooltip:{enabled:false}}}
-  });
-}
-
-async function loadEvents(){
-  if(!state.device) return;
-  const rows = await sbJson(`alerts?select=*&device_id=eq.${state.device}&order=raised_at.desc&limit=12`);
-  $('#events').innerHTML = rows.length ? rows.map(a=>`
-    <div class="ev">
-      <div class="ic" style="background:${a.level==='alarm'?'rgba(255,107,122,.18)':'rgba(245,162,93,.18)'};color:${LEVEL_COLOR[a.level]}">!</div>
-      <div style="flex:1">
-        <div class="t">${fmt(a.hcho_ppm,3)} ppm · ${a.level}</div>
-        <div class="w">${dhaka(a.raised_at)}</div>
-      </div>
-      <span class="sub">${ago(a.raised_at)}</span>
-    </div>`).join("")
-    : `<div class="empty"><h4>Nothing has crossed the line</h4><p>Events land here the moment a sample reaches 0.08 ppm. Silence means clean air.</p></div>`;
-}
-
-async function refresh(){
-  try{ await loadLatest(); await loadStats(); await loadEvents(); paintCardPpms(); }
-  catch(e){ console.error(e); }
-}
-
-/* =============== HISTORY =============== */
-function histPath(size,page){
-  const p = [`select=*`,`order=recorded_at.desc`,`device_id=eq.${state.device}`];
-  if($('#hLevel').value) p.push(`level=eq.${$('#hLevel').value}`);
-  if($('#hMin').value)   p.push(`hcho_ppm=gte.${$('#hMin').value}`);
-  if($('#hFrom').value)  p.push(`recorded_at=gte.${new Date($('#hFrom').value).toISOString()}`);
-  if($('#hTo').value)    p.push(`recorded_at=lte.${new Date($('#hTo').value).toISOString()}`);
-  p.push(`limit=${size}`,`offset=${page*size}`);
-  return "readings?"+p.join("&");
-}
-
-async function loadHistory(){
-  if(!state.device) return;
-  const size = Number($('#hSize').value); state.hist.size = size;
-  try{
-    const res = await sb(histPath(size,state.hist.page),{headers:{Prefer:"count=exact"}});
-    const rows = await res.json();
-    state.hist.rows = rows;
-    const total = (res.headers.get('content-range')||"").split('/')[1] || rows.length;
-    $('#hCount').textContent = `${total} rows total`;
-    $('#hPage').textContent = `page ${state.hist.page+1}`;
-    $('#hPrev').disabled = state.hist.page===0;
-    $('#hNext').disabled = rows.length < size;
-    renderHistory();
-  }catch(e){ toast("Could not load history: "+e.message,"err"); }
-}
-
-function renderHistory(){
-  const q = $('#search').value.trim().toLowerCase();
-  const size = state.hist.size;
-  const rows = q ? state.hist.rows.filter(r =>
-    (r.level+" "+dhaka(r.recorded_at)+" "+r.device_id+" "+fmt(r.hcho_ppm,4)).toLowerCase().includes(q)) : state.hist.rows;
-
-  $('#hBody').innerHTML = rows.length ? rows.map((r,i)=>`
-    <tr>
-      <td>${state.hist.page*size+i+1}</td>
-      <td>${dhaka(r.recorded_at)}</td>
-      <td>${r.device_id}</td>
-      <td class="num">${fmt(r.hcho_ppm,4)}</td>
-      <td class="num">${fmt(r.hcho_mg_m3,4)}</td>
-      <td><span class="tag t-${r.level}">${r.level}</span></td>
-      <td class="num">${fmt(r.rs_kohm,2)}</td>
-      <td class="num">${fmt(r.ratio,3)}</td>
-      <td class="num">${fmt(r.voltage_mv,1)}</td>
-      <td class="num">${r.temperature_c!=null?fmt(r.temperature_c,1):"—"}</td>
-      <td class="num">${r.humidity_pct!=null?fmt(r.humidity_pct,0):"—"}</td>
-      <td class="num">${r.rssi ?? "—"}</td>
-    </tr>`).join("")
-    : `<tr><td colspan="12"><div class="empty"><h4>${q?'Nothing matches that search':'No rows match these filters'}</h4>
-       <p>${q?'Try a level name like warn, or part of a date.':'Widen the date range, or clear the level and minimum-ppm filters.'}</p></div></td></tr>`;
-}
-
-/* =============== DATASET =============== */
-const ALL_COLS = [
-  {k:'recorded_at',on:true},{k:'device_id',on:true},{k:'hcho_ppm',on:true},{k:'hcho_mg_m3',on:true},
-  {k:'level',on:true},{k:'temperature_c',on:true},{k:'humidity_pct',on:true},
-  {k:'rs_kohm',on:false},{k:'ratio',on:false},{k:'voltage_mv',on:false},{k:'adc_raw',on:false},{k:'rssi',on:false}
+const MAIN_CLASSES = [
+  { key:"Fresh_Fish",   label:"Fresh fish",   sub:"untreated, hour 0" },
+  { key:"Formalin_6h",  label:"Formalin 6h",  sub:"treated, 6 hours"  },
+  { key:"Formalin_12h", label:"Formalin 12h", sub:"treated, 12 hours" },
+  { key:"Formalin_24h", label:"Formalin 24h", sub:"treated, 24 hours" }
 ];
-$('#dCols').innerHTML = ALL_COLS.map(c=>`<label class="chip"><input type="checkbox" data-col="${c.k}" ${c.on?'checked':''}>${c.k}</label>`).join("");
+const CTRL_CLASSES = [
+  { key:"Control_6h",  label:"Control 6h",  sub:"untreated, 6 hours"  },
+  { key:"Control_12h", label:"Control 12h", sub:"untreated, 12 hours" },
+  { key:"Control_24h", label:"Control 24h", sub:"untreated, 24 hours" }
+];
+const ALL_CLASSES = [...MAIN_CLASSES, ...CTRL_CLASSES];
 
-async function fetchAll(path){
-  const PAGE=1000; let off=0,out=[];
-  while(true){
-    const rows = await sbJson(`${path}&limit=${PAGE}&offset=${off}`);
-    out = out.concat(rows);
-    if(rows.length < PAGE || out.length > 200000) break;
-    off += PAGE;
+const MIN_POINTS  = 10;     // below this a mean is a guess, not a measurement
+const CV_STABLE   = 0.05;   // 5% coefficient of variation
+const STALE_MS    = 6000;   // no fresh row for this long means the node is gone
+
+/* ===================================================================== */
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  realtime:{ params:{ eventsPerSecond:5 } }
+});
+const $ = id => document.getElementById(id);
+
+let buffer = [];          // live points, RAM only, never written anywhere
+let selected = null;
+let lastSeq = -1;
+let lastRx = 0;
+let health = { conn:false, sensor:false, cal:false, warm:false };
+
+/* ---------- log ---------- */
+function log(msg, cls){
+  const t = new Date().toLocaleTimeString('en-GB');
+  $('log').insertAdjacentHTML('afterbegin', `<div class="${cls||''}">${t} · ${msg}</div>`);
+}
+
+/* ---------- stats ---------- */
+const mean = a => a.reduce((x,y)=>x+y,0)/a.length;
+function sd(a){
+  if (a.length < 2) return 0;
+  const m = mean(a);
+  return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/(a.length-1));
+}
+
+/* ---------- class buttons ---------- */
+function renderClasses(el, list){
+  el.innerHTML = list.map(c =>
+    `<button class="cls" data-k="${c.key}">${c.label}<small>${c.sub}</small></button>`).join('');
+}
+renderClasses($('mainClasses'), MAIN_CLASSES);
+renderClasses($('ctrlClasses'), CTRL_CLASSES);
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('.cls');
+  if (!b) return;
+  selected = b.dataset.k;
+  document.querySelectorAll('.cls').forEach(x => x.classList.toggle('on', x === b));
+  nextSampleNo(selected);
+  refreshGate();
+});
+
+$('ctrlBtn').addEventListener('click', () => {
+  const w = $('ctrlWrap');
+  w.classList.toggle('show');
+  $('ctrlBtn').textContent = w.classList.contains('show')
+    ? 'Hide control classes' : 'Show control classes';
+});
+
+/* ---------- strip chart ----------
+   Scrolling trace on a graph-paper grid. The shaded band on the right is the
+   capture window: exactly the points Store sample will average. Seeing the
+   band is the whole point, it stops you saving during a rise. */
+const cv = $('trace'), ctx = cv.getContext('2d');
+function sizeCanvas(){
+  const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  cv.width = r.width * d; cv.height = r.height * d;
+  ctx.setTransform(d,0,0,d,0,0);
+}
+window.addEventListener('resize', () => { sizeCanvas(); drawTrace(); });
+
+function drawTrace(){
+  const w = cv.clientWidth, h = cv.clientHeight;
+  ctx.clearRect(0,0,w,h);
+
+  const SPAN = 200000;                       // 200 s of history across the width
+  const now  = Date.now();
+  const pts  = buffer.filter(p => p.t >= now - SPAN);
+
+  // grid
+  ctx.strokeStyle = '#E4ECF0'; ctx.lineWidth = 1;
+  for (let x = w; x > 0; x -= 26){ ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,h); ctx.stroke(); }
+  for (let y = h; y > 0; y -= 26){ ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(w,y+.5); ctx.stroke(); }
+
+  // capture window band
+  const secs = +$('window').value;
+  const bandW = Math.min(w, w * (secs*1000) / SPAN);
+  ctx.fillStyle = 'rgba(11,110,110,.10)';
+  ctx.fillRect(w - bandW, 0, bandW, h);
+  ctx.strokeStyle = 'rgba(11,110,110,.34)';
+  ctx.beginPath(); ctx.moveTo(w-bandW+.5,0); ctx.lineTo(w-bandW+.5,h); ctx.stroke();
+
+  if (pts.length < 2){
+    ctx.fillStyle = '#7590A2'; ctx.font = '12px Archivo, sans-serif';
+    ctx.fillText('waiting for the node', 14, h/2);
+    $('scaleTxt').textContent = '—';
+    return;
   }
-  return out;
+
+  const vals = pts.map(p => p.ppm).filter(v => v != null);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max((hi-lo)*0.25, 0.004);
+  lo -= pad; hi += pad;
+  const X = t => w - ((now - t) / SPAN) * w;
+  const Y = v => h - 8 - ((v - lo)/(hi - lo)) * (h - 20);
+
+  // baseline marker
+  const base = parseFloat($('baseline').value);
+  if (!isNaN(base) && base >= lo && base <= hi){
+    ctx.save(); ctx.setLineDash([4,4]); ctx.strokeStyle = '#8A5A00'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, Y(base)); ctx.lineTo(w, Y(base)); ctx.stroke(); ctx.restore();
+  }
+
+  // trace
+  ctx.strokeStyle = '#0B6E6E'; ctx.lineWidth = 1.9;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();
+  pts.forEach((p,i) => { const x = X(p.t), y = Y(p.ppm);
+    i ? ctx.lineTo(x,y) : ctx.moveTo(x,y); });
+  ctx.stroke();
+
+  // head dot
+  const lastP = pts[pts.length-1];
+  ctx.fillStyle = '#0B6E6E';
+  ctx.beginPath(); ctx.arc(X(lastP.t), Y(lastP.ppm), 3.2, 0, Math.PI*2); ctx.fill();
+
+  $('scaleTxt').textContent = `${lo.toFixed(3)} – ${hi.toFixed(3)} ppm · 200 s`;
 }
 
-function resample(rows,minutes){
-  if(minutes==='raw') return rows;
-  const m = Number(minutes)*60000, b = new Map();
-  rows.forEach(r=>{
-    const key = r.device_id+"|"+Math.floor(new Date(r.recorded_at).getTime()/m)*m;
-    if(!b.has(key)) b.set(key,[]);
-    b.get(key).push(r);
-  });
-  const mean=(a,k)=>{const v=a.map(r=>r[k]).filter(x=>x!=null&&!Number.isNaN(Number(x))).map(Number);
-    return v.length?v.reduce((p,c)=>p+c,0)/v.length:null};
-  return [...b.entries()].map(([key,arr])=>{
-    const [dev,ts]=key.split("|"); const ppm=mean(arr,'hcho_ppm');
-    return {recorded_at:new Date(Number(ts)).toISOString(),device_id:dev,hcho_ppm:ppm,
-      hcho_mg_m3:ppm!=null?ppm*1.228:null,level:ppm!=null?levelOf(ppm):null,
-      temperature_c:mean(arr,'temperature_c'),humidity_pct:mean(arr,'humidity_pct'),
-      rs_kohm:mean(arr,'rs_kohm'),ratio:mean(arr,'ratio'),voltage_mv:mean(arr,'voltage_mv'),
-      adc_raw:mean(arr,'adc_raw'),rssi:mean(arr,'rssi'),n_samples:arr.length,
-      ppm_min:Math.min(...arr.map(r=>Number(r.hcho_ppm))),ppm_max:Math.max(...arr.map(r=>Number(r.hcho_ppm)))};
-  }).sort((a,b)=>new Date(a.recorded_at)-new Date(b.recorded_at));
+function windowPoints(){
+  const secs = +$('window').value;
+  return buffer.filter(p => p.t >= Date.now() - secs*1000);
 }
 
-function addFeatures(rows){
-  const W=5;
-  return rows.map((r,i)=>{
-    const dh = new Date(new Date(r.recorded_at).toLocaleString('en-US',{timeZone:'Asia/Dhaka'}));
-    const sl = rows.slice(Math.max(0,i-W+1),i+1).map(x=>Number(x.hcho_ppm)).filter(x=>!Number.isNaN(x));
-    return {...r, hour_of_day:dh.getHours(), day_of_week:dh.getDay(),
-      is_weekend:(dh.getDay()===5||dh.getDay()===6)?1:0,
-      delta_ppm: i?Number((Number(r.hcho_ppm)-Number(rows[i-1].hcho_ppm)).toFixed(5)):0,
-      roll_mean_5: sl.length?Number((sl.reduce((a,b)=>a+b,0)/sl.length).toFixed(5)):null,
-      exceeds_who: Number(r.hcho_ppm)>=WHO_PPM?1:0};
-  });
+/* ---------- live feed ---------- */
+function onLive(r){
+  if (!r || r.device_id !== DEVICE_ID) return;
+  if (r.seq != null && r.seq === lastSeq) return;
+  lastSeq = r.seq;
+  lastRx  = Date.now();
+
+  health.sensor = r.sensor_ok !== false;
+  health.cal    = !!r.is_calibrated;
+  health.warm   = !!r.warmed_up;
+  health.conn   = true;
+
+  // A faulty sensor produces no measurement, so nothing enters the buffer.
+  if (health.sensor){
+    buffer.push({ t:Date.now(), ppm:r.hcho_ppm, ratio:r.ratio, rs:r.rs_kohm, adc:r.adc_raw });
+    if (buffer.length > 400) buffer.shift();
+  }
+
+  $('ppm').textContent   = health.sensor && r.hcho_ppm != null ? (+r.hcho_ppm).toFixed(3) : '—.———';
+  $('ratio').textContent = r.ratio   != null ? (+r.ratio).toFixed(3) : '—';
+  $('rs').textContent    = r.rs_kohm != null ? (+r.rs_kohm).toFixed(2)+' kΩ' : '—';
+  $('adc').textContent   = r.adc_raw != null ? r.adc_raw : '—';
+  $('seqTxt').textContent = 'seq ' + (r.seq ?? '—');
+
+  drawTrace();
+  refreshGate();
 }
 
-function stats(v){
-  if(!v.length) return null;
-  const s=[...v].sort((a,b)=>a-b), mean=v.reduce((a,b)=>a+b,0)/v.length;
-  const sd=Math.sqrt(v.reduce((a,b)=>a+(b-mean)**2,0)/Math.max(1,v.length-1));
-  const q=p=>s[Math.min(s.length-1,Math.floor(p*(s.length-1)))];
-  return {n:v.length,mean,sd,min:s[0],max:s.at(-1),median:q(.5),p95:q(.95)};
+/* ---------- health banner ---------- */
+function setAlarm(title, body){
+  const a = $('alarm');
+  if (!title){ a.classList.remove('show'); return; }
+  $('alarmT').textContent = title;
+  $('alarmB').textContent = body;
+  a.classList.add('show');
 }
 
-async function buildDataset(){
-  const btn=$('#dBuild'); btn.disabled=true; btn.textContent="Building…";
-  try{
-    const from = $('#dFrom').value ? new Date($('#dFrom').value).toISOString() : new Date(Date.now()-7*864e5).toISOString();
-    const to   = $('#dTo').value   ? new Date($('#dTo').value).toISOString()   : new Date().toISOString();
-    let path = `readings?select=*&recorded_at=gte.${from}&recorded_at=lte.${to}&order=recorded_at.asc`;
-    if($('#dScope').value==='one') path += `&device_id=eq.${state.device}`;
+/* ---------- gate ----------
+   Everything that could poison the dataset is checked here, and the reason a
+   Save is blocked is written out rather than left to a greyed button. */
+function refreshGate(){
+  const fresh = Date.now() - lastRx < STALE_MS;
+  health.conn = fresh;
 
-    let rows = await fetchAll(path);
-    if(!rows.length){ toast("No readings in that window.","err"); return; }
-    rows = resample(rows,$('#dRes').value);
-    if($('#dFeat').checked) rows = addFeatures(rows);
+  $('led').classList.toggle('on', fresh);
+  $('wire').textContent = fresh ? DEVICE_ID : 'no data';
+  $('sState').textContent = !fresh ? '—'
+    : !health.sensor ? 'fault' : !health.cal ? 'uncalibrated'
+    : !health.warm ? 'warming' : 'ready';
 
-    const picked = $$('#dCols input:checked').map(i=>i.dataset.col);
-    const extra = ['n_samples','ppm_min','ppm_max','hour_of_day','day_of_week','is_weekend','delta_ppm','roll_mean_5','exceeds_who'].filter(k=>k in rows[0]);
-    const cols = [...picked,...extra];
+  if (!fresh)
+    setAlarm('Node not reporting', 'No fresh row in live_reading. Check the ESP32 is powered, on WiFi, and that its Supabase project matches this page.');
+  else if (!health.sensor)
+    setAlarm('Sensor fault', 'The node is rejecting its own readings. Check AOUT wiring and the common ground, then run raw on the serial console.');
+  else if (!health.cal)
+    setAlarm('Not calibrated', 'Run cal on the serial console in clean air. Until then every ppm value is meaningless.');
+  else if (!health.warm)
+    setAlarm('Warming up', 'The sensor needs about three minutes before readings count. Captures are blocked until then.');
+  else setAlarm(null);
 
-    state.ds.rows = rows.map(r=>{
-      const o={}; cols.forEach(c=>{let v=r[c];
-        if(typeof v==='number' && !Number.isInteger(v)) v=Number(v.toFixed(5));
-        o[c]= v ?? "";}); return o;
-    });
-    state.ds.cols = cols;
+  const pts = windowPoints();
+  const ppmW = pts.map(p=>p.ppm).filter(v=>v!=null);
+  const recent = ppmW.slice(-15);
+  const m = recent.length ? mean(recent) : 0;
+  const cvv = recent.length > 4 && m > 0 ? sd(recent)/m : null;
 
-    $('#dHead').innerHTML = "<tr>"+cols.map(c=>`<th>${c}</th>`).join("")+"</tr>";
-    $('#dBody').innerHTML = state.ds.rows.slice(0,200).map(r=>"<tr>"+cols.map(c=>
-      `<td class="${typeof r[c]==='number'?'num':''}">${c==='recorded_at'?dhaka(r[c]):r[c]}</td>`).join("")+"</tr>").join("");
+  $('wCount').textContent = pts.length + ' pts';
+  $('cv').textContent = cvv == null ? '—' : (cvv*100).toFixed(1)+'%';
 
-    const st = stats(rows.map(r=>Number(r.hcho_ppm)).filter(v=>!Number.isNaN(v)));
-    const over = rows.filter(r=>Number(r.hcho_ppm)>=WHO_PPM).length;
-    $('#dStats').innerHTML = [['rows',st.n],['mean',st.mean.toFixed(4)],['sd',st.sd.toFixed(4)],
-      ['median',st.median.toFixed(4)],['p95',st.p95.toFixed(4)],['min',st.min.toFixed(4)],
-      ['max',st.max.toFixed(4)],['≥ WHO',(100*over/st.n).toFixed(1)+"%"]]
-      .map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+  const hasBase = !isNaN(parseFloat($('baseline').value));
+  const enoughPts = pts.length >= MIN_POINTS;
+  const steady = cvv != null && cvv < CV_STABLE;
 
-    drawHist(rows); drawDaily(rows);
-    ['#dCsv','#dXlsx','#dJson'].forEach(s=>$(s).disabled=false);
-    $('#dNote').textContent = `${state.ds.rows.length} rows × ${cols.length} columns ready.`;
-    toast(`Dataset built · ${state.ds.rows.length} rows`);
-  }catch(e){ toast("Build failed: "+e.message,"err"); console.error(e); }
-  finally{ btn.disabled=false; btn.textContent="Build dataset"; }
+  step('s1', hasBase ? 'done' : 'warn', hasBase ? 'recorded' : 'none taken yet');
+  step('s2', selected ? 'done' : '', selected ? selected.replace(/_/g,' ') : 'none picked');
+  step('s3', enoughPts ? 'done' : '', `${pts.length} of ${MIN_POINTS} needed`);
+  step('s4', steady ? 'done' : '', cvv == null ? 'collecting' : (cvv*100).toFixed(1)+'% spread');
+
+  let block = null;
+  if (!fresh)             block = 'The node is not reporting.';
+  else if (!health.sensor) block = 'The sensor is in fault. Nothing can be stored.';
+  else if (!health.cal)    block = 'Calibrate the node before storing anything.';
+  else if (!health.warm)   block = 'Wait for warm-up to finish.';
+  else if (!selected)      block = 'Pick a class.';
+  else if (!enoughPts)     block = `Need ${MIN_POINTS} points in the window, have ${pts.length}.`;
+  else if (!steady)        block = 'Reading is still moving. Wait for the spread to fall below 5%.';
+  else if (!hasBase)       block = null;
+
+  $('btnSave').disabled = !!block;
+  $('why').textContent = block || (hasBase ? '' : 'No baseline recorded. You can store, but drift will be harder to remove later.');
 }
 
-function drawHist(rows){
-  const v = rows.map(r=>Number(r.hcho_ppm)).filter(x=>!Number.isNaN(x));
-  const bins=20, min=Math.min(...v), max=Math.max(...v)||1, w=(max-min)/bins||1;
-  const counts=new Array(bins).fill(0);
-  v.forEach(x=>counts[Math.min(bins-1,Math.floor((x-min)/w))]++);
-  const labels=counts.map((_,i)=>(min+i*w).toFixed(3));
-  if(state.charts.hist) state.charts.hist.destroy();
-  state.charts.hist = new Chart($('#histChart'),{
-    type:'bar',
-    data:{labels,datasets:[{data:counts,borderRadius:6,
-      backgroundColor:labels.map(l=>Number(l)>=WHO_PPM?C.tang:C.iris)}]},
-    options:baseOpts()
-  });
+function step(id, state, txt){
+  const el = $(id);
+  el.classList.remove('done','warn');
+  if (state) el.classList.add(state);
+  el.querySelector('span').textContent = txt;
 }
 
-function drawDaily(rows){
-  const days=new Map();
-  rows.forEach(r=>{
-    const d=new Date(r.recorded_at).toLocaleDateString('en-CA',{timeZone:'Asia/Dhaka'});
-    if(!days.has(d)) days.set(d,[]); days.get(d).push(Number(r.hcho_ppm));
-  });
-  const labels=[...days.keys()].sort();
-  if(state.charts.daily) state.charts.daily.destroy();
-  state.charts.daily = new Chart($('#dailyChart'),{
-    type:'bar',
-    data:{labels,datasets:[
-      {data:labels.map(d=>{const a=days.get(d);return a.reduce((x,y)=>x+y,0)/a.length}),backgroundColor:C.sky,borderRadius:6},
-      {type:'line',data:labels.map(d=>Math.max(...days.get(d))),borderColor:C.rose,borderWidth:2,pointRadius:2,tension:.35}
-    ]},
-    options:baseOpts()
-  });
-}
+/* ---------- realtime, with a poll that keeps it honest ----------
+   A websocket can die quietly. When it does the page still looks alive and
+   the number simply stops moving, which is the worst possible failure during
+   a 24 hour run. The poll catches it. */
+sb.channel('live-hcho')
+  .on('postgres_changes',
+      { event:'*', schema:'public', table:'live_reading', filter:`device_id=eq.${DEVICE_ID}` },
+      p => onLive(p.new))
+  .subscribe(st => log('realtime · ' + st));
 
-/* =============== EXPORT =============== */
-const HIST_COLS=['recorded_at','device_id','hcho_ppm','hcho_mg_m3','level','rs_kohm','ratio','voltage_mv','adc_raw','temperature_c','humidity_pct','rssi','fw'];
-const stamp = ()=>{const d=new Date();return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`};
-function download(blob,name){
-  const u=URL.createObjectURL(blob), a=document.createElement('a');
-  a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),1500);
-}
-function toCsv(rows,cols){
-  const esc=v=>{const s=v==null?"":String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
-  return cols.join(",")+"\n"+rows.map(r=>cols.map(c=>esc(r[c])).join(",")).join("\n");
-}
-function exportCsv(rows,cols,base){
-  download(new Blob([toCsv(rows,cols)],{type:'text/csv;charset=utf-8'}),`${base}_${stamp()}.csv`);
-  toast(`${rows.length} rows exported to CSV`);
-}
-function exportXlsx(rows,cols,base,sheet="readings"){
-  const ws=XLSX.utils.json_to_sheet(rows,{header:cols});
-  ws['!cols']=cols.map(c=>({wch:c==='recorded_at'?22:Math.max(11,c.length+2)}));
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,sheet);
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([
-    {field:'dataset',value:'Formaldehyde (HCHO) indoor air monitoring'},
-    {field:'sensor',value:'MS1100 VOC/HCHO semiconductor sensor'},
-    {field:'controller',value:'ESP32'},
-    {field:'unit_primary',value:'ppm'},
-    {field:'unit_secondary',value:'mg/m3 (ppm x 1.228 @25C, 1atm)'},
-    {field:'guideline',value:'WHO 30-min guideline 0.08 ppm / 0.1 mg/m3'},
-    {field:'timezone',value:'Asia/Dhaka (UTC+6)'},
-    {field:'rows',value:rows.length},
-    {field:'exported_at',value:new Date().toISOString()}
-  ]),"metadata");
-  XLSX.writeFile(wb,`${base}_${stamp()}.xlsx`);
-  toast(`${rows.length} rows exported to Excel`);
-}
+setInterval(async () => {
+  const { data, error } = await sb.from('live_reading')
+    .select('*').eq('device_id', DEVICE_ID).maybeSingle();
+  if (error){ refreshGate(); return; }
+  if (data) onLive(data);
+}, 1500);
 
-/* =============== WIRING =============== */
-$('#btnRefresh').addEventListener('click',async()=>{
-  await refresh(); await loadTrend();
-  if(!$('#v-history').hidden) loadHistory();
-  toast("Refreshed");
-});
-$('#rangeSel').addEventListener('change',e=>{state.hours=Number(e.target.value);loadTrend()});
-$('#search').addEventListener('input',()=>{
-  if($('#v-history').hidden && $('#search').value.trim()){ go('history'); return; }
-  renderHistory();
+setInterval(() => { refreshGate(); drawTrace(); }, 1000);
+
+/* ---------- baseline ---------- */
+$('takeBase').addEventListener('click', () => {
+  const pts = windowPoints().map(p=>p.ppm).filter(v=>v!=null);
+  if (pts.length < MIN_POINTS) return log(`baseline needs ${MIN_POINTS} points, have ${pts.length}`, 'e');
+  const b = mean(pts);
+  $('baseline').value = b.toFixed(4);
+  log(`baseline set to ${b.toFixed(4)} ppm from ${pts.length} points`, 's');
+  refreshGate(); drawTrace();
 });
 
-$('#hApply').addEventListener('click',()=>{state.hist.page=0;loadHistory()});
-$('#hReset').addEventListener('click',()=>{
-  ['#hFrom','#hTo','#hLevel','#hMin'].forEach(s=>$(s).value="");
-  state.hist.page=0; loadHistory();
-});
-$('#hPrev').addEventListener('click',()=>{if(state.hist.page>0){state.hist.page--;loadHistory()}});
-$('#hNext').addEventListener('click',()=>{state.hist.page++;loadHistory()});
-$('#hSize').addEventListener('change',()=>{state.hist.page=0;loadHistory()});
-$('#hCsv').addEventListener('click',()=>state.hist.rows.length?exportCsv(state.hist.rows,HIST_COLS,`hcho_log_${state.device}`):toast("Nothing to export.","err"));
-$('#hXlsx').addEventListener('click',()=>state.hist.rows.length?exportXlsx(state.hist.rows,HIST_COLS,`hcho_log_${state.device}`):toast("Nothing to export.","err"));
-
-$('#dBuild').addEventListener('click',buildDataset);
-$('#dCsv').addEventListener('click',()=>exportCsv(state.ds.rows,state.ds.cols,'hcho_dataset'));
-$('#dXlsx').addEventListener('click',()=>exportXlsx(state.ds.rows,state.ds.cols,'hcho_dataset','dataset'));
-$('#dJson').addEventListener('click',()=>{
-  download(new Blob([JSON.stringify(state.ds.rows,null,2)],{type:'application/json'}),`hcho_dataset_${stamp()}.json`);
-  toast(`${state.ds.rows.length} rows exported to JSON`);
-});
-
-const openCfg = ()=>{ $('#cfgUrl').value=SB_URL; $('#cfgKey').value=SB_KEY; $('#dlg').showModal(); };
-$('#navSettings').addEventListener('click',openCfg);
-$('#cfgClose').addEventListener('click',()=>$('#dlg').close());
-$('#cfgSave').addEventListener('click',async()=>{
-  SB_URL=$('#cfgUrl').value.trim().replace(/\/$/,''); SB_KEY=$('#cfgKey').value.trim();
-  $('#dlg').close(); await boot();
-});
-async function sendTest(){
-  if(!state.device){ toast("Register a node first.","err"); return; }
-  const ppm=Number((0.02+Math.random()*0.12).toFixed(4));
-  try{
-    await sb("readings",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify({
-      device_id:state.device,hcho_ppm:ppm,hcho_mg_m3:Number((ppm*1.228).toFixed(4)),
-      voltage_mv:900+Math.random()*400,rs_kohm:12+Math.random()*6,ratio:2+Math.random()*2.5,
-      temperature_c:29+Math.random()*3,humidity_pct:68+Math.random()*10,fw:'dashboard-test'})});
-    toast(`Test reading inserted · ${ppm} ppm`);
-    refresh(); loadTrend();
-  }catch(e){ toast("Insert failed: "+e.message,"err"); }
+/* ---------- sample numbering ---------- */
+async function nextSampleNo(label){
+  const { data } = await sb.from('samples')
+    .select('sample_no').eq('label', label)
+    .order('sample_no', { ascending:false }).limit(1);
+  const n = (data && data.length ? data[0].sample_no : 0) + 1;
+  $('sampleNo').value = n;
+  $('nextNo').textContent = `${label.replace(/_/g,' ')} · #${n}`;
 }
-$('#cfgTest').addEventListener('click',sendTest);
-$('#scBtn').addEventListener('click',sendTest);
 
-/* =============== BOOT =============== */
-async function boot(){
-  const now=new Date();
-  $('#dTo').value=localInput(now);
-  $('#dFrom').value=localInput(new Date(now-7*864e5));
-  $('#avatar').textContent = OWNER.slice(0,2).toUpperCase();
-  try{
-    await loadDevices(); await refresh(); await loadTrend();
-    if(!state.devices.length) toast("No nodes registered — run the SQL schema first.","err");
-  }catch(e){ toast("Connection failed: "+e.message,"err"); }
+/* ---------- store ---------- */
+$('btnSave').addEventListener('click', async () => {
+  const pts = windowPoints();
+  if (!selected || pts.length < MIN_POINTS) return refreshGate();
+
+  const btn = $('btnSave');
+  btn.disabled = true; btn.textContent = 'Storing…';
+
+  const ppm = pts.map(p=>p.ppm).filter(v=>v!=null);
+  const num = a => a.filter(v=>v!=null);
+  const avg = a => a.length ? mean(a) : null;
+  const r4  = v => v == null ? null : Math.round(v*10000)/10000;
+  const numOrNull = id => $(id).value !== '' ? +$(id).value : null;
+
+  const row = {
+    device_id : DEVICE_ID,
+    label     : selected,
+    sample_no : +$('sampleNo').value,
+    n_readings: pts.length,
+    ppm_mean  : r4(avg(ppm)),
+    ppm_sd    : r4(sd(ppm)),
+    ppm_min   : r4(Math.min(...ppm)),
+    ppm_max   : r4(Math.max(...ppm)),
+    ratio_mean: r4(avg(num(pts.map(p=>p.ratio)))),
+    rs_mean   : r4(avg(num(pts.map(p=>p.rs)))),
+    temp_mean : numOrNull('roomTemp'),
+    rh_mean   : null,
+    fish_species: $('species').value.trim() || null,
+    fish_mass_g : numOrNull('mass'),
+    formalin_pct: numOrNull('fpct'),
+    chamber_ml  : numOrNull('chamber'),
+    baseline_ppm: numOrNull('baseline'),
+    notes       : $('notes').value.trim() || null
+  };
+
+  const { data: ins, error } = await sb.from('samples').insert(row).select('id').single();
+  if (error){
+    btn.disabled = false; btn.textContent = 'Store sample';
+    if (String(error.message).includes('samples_unique_no'))
+      return log(`sample no ${row.sample_no} already exists for ${selected}`, 'e');
+    return log('store failed · ' + error.message, 'e');
+  }
+
+  const t0 = pts[0].t;
+  const raw = pts.map(p => ({
+    device_id:DEVICE_ID, sample_id:ins.id, label:selected, sample_no:row.sample_no,
+    recorded_at:new Date(p.t).toISOString(), t_offset_ms:p.t - t0,
+    hcho_ppm:p.ppm ?? 0, ratio:p.ratio, rs_kohm:p.rs, adc_raw:p.adc
+  }));
+  const { error: e2 } = await sb.from('readings').insert(raw);
+  if (e2) log('sample stored, raw trace failed · ' + e2.message, 'e');
+
+  log(`stored ${selected.replace(/_/g,' ')} #${row.sample_no} · ${row.ppm_mean} ppm · ${pts.length} pts`, 's');
+
+  buffer = [];
+  $('notes').value = '';
+  btn.textContent = 'Store sample';
+  await nextSampleNo(selected);
+  loadCounts();
+  refreshGate(); drawTrace();
+});
+
+$('btnClear').addEventListener('click', () => {
+  buffer = []; drawTrace(); refreshGate();
+  log('window discarded, nothing was stored');
+});
+$('window').addEventListener('change', () => { refreshGate(); drawTrace(); });
+$('baseline').addEventListener('input', () => { refreshGate(); drawTrace(); });
+
+/* ---------- progress ---------- */
+async function loadCounts(){
+  const { data, error } = await sb.from('v_label_counts').select('*');
+  if (error) return log('counts · ' + error.message, 'e');
+  const order = ALL_CLASSES.map(c=>c.key);
+  const rows = data.slice().sort((a,b)=>order.indexOf(a.label)-order.indexOf(b.label));
+  const max = Math.max(1, ...rows.map(r=>r.samples));
+  const total = rows.reduce((s,r)=>s+ +r.samples, 0);
+  $('totalN').textContent = total;
+  $('counts').innerHTML = rows.map(r => `
+    <tr class="${+r.samples ? '' : 'empty'}">
+      <td>${r.label.replace(/_/g,' ')}</td>
+      <td>${r.samples}</td>
+      <td>${+r.samples ? (+r.ppm_avg).toFixed(4) : '—'}</td>
+      <td>${+r.samples ? (+r.ppm_sd_avg).toFixed(4) : '—'}</td>
+      <td><div class="meter"><i style="width:${(+r.samples)/max*100}%"></i></div></td>
+    </tr>`).join('');
 }
-boot();
-setInterval(()=>{ if(!$('#v-live').hidden) refresh(); },POLL_MS);
-setInterval(()=>{ if(!$('#v-live').hidden) loadTrend(); },60000);
+
+/* ---------- export ---------- */
+function toCsv(rows){
+  if (!rows.length) return '';
+  const cols = Object.keys(rows[0]);
+  const esc = v => v == null ? '' :
+    (/[",\n]/.test(String(v)) ? '"'+String(v).replace(/"/g,'""')+'"' : v);
+  return [cols.join(','), ...rows.map(r=>cols.map(c=>esc(r[c])).join(','))].join('\n');
+}
+function download(name, text){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type:'text/csv;charset=utf-8'}));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+async function exportView(view, file){
+  const { data, error } = await sb.from(view).select('*');
+  if (error) return log('export · ' + error.message, 'e');
+  if (!data.length) return log('nothing stored yet', 'e');
+  download(file, toCsv(data));
+  log(`exported ${data.length} rows to ${file}`, 's');
+}
+$('expWide').onclick = () => exportView('v_dataset_wide','hcho_dataset_wide.csv');
+$('expLong').onclick = () => exportView('v_dataset_long','hcho_dataset_long.csv');
+$('expRaw').onclick  = () => exportView('v_dataset_raw','hcho_dataset_raw.csv');
+$('refresh').onclick = loadCounts;
+
+/* ---------- go ---------- */
+sizeCanvas(); drawTrace(); loadCounts(); refreshGate();
 </script>
 </body>
 </html>
