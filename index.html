@@ -680,6 +680,7 @@ function toCsv(rows){
     (/[",\n]/.test(String(v)) ? '"'+String(v).replace(/"/g,'""')+'"' : v);
   return [cols.join(','), ...rows.map(r=>cols.map(c=>esc(r[c])).join(','))].join('\n');
 }
+  
 function download(name, text){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], {type:'text/csv;charset=utf-8'}));
